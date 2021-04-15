@@ -4,6 +4,7 @@ trigger:
 pr:
 - master
 
+jobs:
 - job: build_test_windows
   displayName: Build and Test on Windows
   timeoutInMinutes: 60
