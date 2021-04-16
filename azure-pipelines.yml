@@ -37,13 +37,16 @@ jobs:
         cd C:\vcpkg-master
         .\bootstrap-vcpkg.bat
         .\vcpkg install curl[winssl]:x86-windows catch2:x86-windows
-        .\vcpkg export curl[winssl]:x86-windows --zip
+        .\vcpkg export curl[winssl]:x86-windows --nuget
       displayName: Install Dependencies
       
-    - task: PublishBuildArtifacts@1
+    - task: NuGetCommand@2
       inputs:
-        ArtifactName: $(vm_image)-$(platform)-$(toolset)-deps
-        PathtoPublish: C:\vcpkg-master\*.zip
+        command: 'push'
+        packagesToPush: 'C:/vcpkg-master/*.nupkg;!C:/vcpkg-master/*.symbols.nupkg'
+        nuGetFeedType: 'internal'
+        publishVstsFeed: '216a8129-e82c-4424-8b40-bbd33b1490ab/1f926c1c-b765-4980-9756-6010f2c3a9f6'
+        allowPackageConflicts: true
 
     - powershell: |
         cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg-master\scripts\buildsystems\vcpkg.cmake -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON -A $(platform) -T $(toolset)
