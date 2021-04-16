@@ -36,12 +36,25 @@ jobs:
         [System.IO.Compression.ZipFile]::ExtractToDirectory("vcpkg-master.zip", "C:\")
         cd C:\vcpkg-master
         .\bootstrap-vcpkg.bat
-        .\vcpkg install curl[winssl]:x86-windows curl[winssl]:x64-windows catch2:x86-windows catch2:x64-windows
+        .\vcpkg install curl[winssl]:x86-windows catch2:x86-windows
+        .\vcpkg export curl[winssl]:x86-windows --zip
       displayName: Install Dependencies
+      
+    - task: PublishBuildArtifacts@1
+      inputs:
+        ArtifactName: $(vm_image)-$(platform)-$(toolset)-deps
+        PathtoPublish: C:\vcpkg-master\*.zip
 
     - powershell: |
         cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg-master\scripts\buildsystems\vcpkg.cmake -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON -A $(platform) -T $(toolset)
         cmake --build $(Build.BinariesDirectory) --config $(build_type)
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        ArtifactName: $(vm_image)-$(platform)-$(toolset)
+        PathtoPublish: $(Build.BinariesDirectory)      
+
+    - powershell: |        
         Remove-Item $(Build.BinariesDirectory) -Recurse -Force
         cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg-master\scripts\buildsystems\vcpkg.cmake -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_ADLS=ON -A $(platform) -T $(toolset)
         cmake --build $(Build.BinariesDirectory) --config $(build_type)
@@ -49,7 +62,7 @@ jobs:
     
     - task: PublishBuildArtifacts@1
       inputs:
-        ArtifactName: $(vm_image)-$(platform)-$(toolset)
+        ArtifactName: $(vm_image)-$(platform)-$(toolset)-adls
         PathtoPublish: $(Build.BinariesDirectory)
 
     - powershell: |
