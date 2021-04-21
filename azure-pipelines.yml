@@ -5,100 +5,6 @@ pr:
 - master
 
 jobs:
-- job: build_test_linux
-  displayName: Build and Test on Linux
-  timeoutInMinutes: 60
-
-  strategy:
-    maxParallel: 16
-    matrix:
-      UBUNTU1604:
-        container_image: ubuntu16.04:cpplite
-        build_type: Release
-      UBUNTU1804:
-        container_image: ubuntu18.04:cpplite
-        build_type: Release
-      UBUNTU2004:
-        container_image: ubuntu20.04:cpplite
-        build_type: Release
-      UBUNTU2004_DEBUG:
-        container_image: ubuntu20.04:cpplite
-        build_type: Debug
-      UBUNTU2004_GNUTLS:
-        container_image: ubuntu20.04:cpplite
-        build_type: Release
-        extra_cmake_options: -DUSE_OPENSSL=OFF
-      CENTOS6:
-        container_image: centos6:cpplite
-        build_type: Release
-        extra_cmake_options: -DCMAKE_C_COMPILER=$(source scl_source enable devtoolset-6 && which gcc) -DCMAKE_CXX_COMPILER=$(source scl_source enable devtoolset-6 && which g++)
-      CENTOS7_DEBUG:
-        container_image: centos7:cpplite
-        build_type: Debug
-        extra_cmake_options: -DCMAKE_C_COMPILER=$(source scl_source enable devtoolset-4 && which gcc) -DCMAKE_CXX_COMPILER=$(source scl_source enable devtoolset-4 && which g++)
-      CENTOS8:
-        container_image: centos8:cpplite
-        build_type: Release
-
-  pool:
-    vmImage: 'ubuntu-16.04'
-
-  container:
-    image: azurecppsdkpipeline.azurecr.io/$(container_image)
-    endpoint: azure_docker_registry_connection
-
-  steps:
-  - script: |
-      sed -i 's@DefaultEndpointsProtocol=https;@'${MAPPED_TEST_CONFIGURATION}'@g' test/test_base.h
-      sed -i 's@DefaultEndpointsProtocol=https;@'${MAPPED_ADLS_TEST_CONFIGURATION}'@g' adls/test/adls_test_base.h
-    displayName: Set Test Configuration
-    env:
-      MAPPED_TEST_CONFIGURATION: $(test_configuration)
-      MAPPED_ADLS_TEST_CONFIGURATION: $(adls_test_configuration)
-
-  - script: |
-      cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_BUILD_TYPE=$(build_type) -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON $(extra_cmake_options)
-      cmake --build $(Build.BinariesDirectory) -- -j$(nproc)
-      rm -rf $(Build.BinariesDirectory)
-      cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_BUILD_TYPE=$(build_type) -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_ADLS=ON $(extra_cmake_options)
-      cmake --build $(Build.BinariesDirectory) -- -j$(nproc)
-    displayName: Build
-
-  - script: ./azure-storage-test
-    workingDirectory: $(Build.BinariesDirectory)
-    displayName: Run Tests
-
-- job: build_test_macos
-  displayName: Build and Test on macOS
-  timeoutInMinutes: 60
-
-  pool:
-    vmImage: 'macOS-latest'
-
-  steps:
-  - script: |
-      sed -i '' 's@DefaultEndpointsProtocol=https;@'${MAPPED_TEST_CONFIGURATION}'@g' test/test_base.h
-      sed -i '' 's@DefaultEndpointsProtocol=https;@'${MAPPED_ADLS_TEST_CONFIGURATION}'@g' adls/test/adls_test_base.h
-    displayName: Set Test Configuration
-    env:
-      MAPPED_TEST_CONFIGURATION: $(test_configuration)
-      MAPPED_ADLS_TEST_CONFIGURATION: $(adls_test_configuration)
-
-  - script: brew install openssl cmake catch2
-    displayName: Install Dependencies
-
-  - script: |
-      cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_BUILD_TYPE=Release -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON
-      cmake --build $(Build.BinariesDirectory) -- -j$(nproc)
-      rm -rf $(Build.BinariesDirectory)
-      cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_BUILD_TYPE=Release -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_ADLS=ON
-      cmake --build $(Build.BinariesDirectory) -- -j$(nproc)
-    displayName: Build
-
-  - script: ./azure-storage-test
-    workingDirectory: $(Build.BinariesDirectory)
-    displayName: Run Tests
-
 - job: build_test_windows
   displayName: Build and Test on Windows
   timeoutInMinutes: 60
@@ -106,25 +12,10 @@ jobs:
   strategy:
     maxParallel: 16
     matrix:
-      VS2015:
-        vm_image: vs2017-win2016
-        build_type: Release
-        platform: x64
-        toolset: v140
-      VS2017:
-        vm_image: vs2017-win2016
-        build_type: Release
-        platform: x64
-        toolset: v141
-      VS2017_WIN32:
-        vm_image: vs2017-win2016
-        build_type: Debug
-        platform: Win32
-        toolset: v141
-      VS2019:
+      VS2019_Win32:
         vm_image: windows-2019
-        build_type: Debug
-        platform: x64
+        build_type: Release
+        platform: Win32
         toolset: v142
 
   pool:
@@ -145,16 +36,37 @@ jobs:
         [System.IO.Compression.ZipFile]::ExtractToDirectory("vcpkg-master.zip", "C:\")
         cd C:\vcpkg-master
         .\bootstrap-vcpkg.bat
-        .\vcpkg install curl[winssl]:x86-windows curl[winssl]:x64-windows catch2:x86-windows catch2:x64-windows
+        .\vcpkg install curl[winssl]:x86-windows catch2:x86-windows
+        .\vcpkg export curl[winssl]:x86-windows --nuget
       displayName: Install Dependencies
+      
+    - task: NuGetCommand@2
+      inputs:
+        command: 'push'
+        packagesToPush: 'C:/vcpkg-master/*.nupkg;!C:/vcpkg-master/*.symbols.nupkg'
+        nuGetFeedType: 'internal'
+        publishVstsFeed: '216a8129-e82c-4424-8b40-bbd33b1490ab/1f926c1c-b765-4980-9756-6010f2c3a9f6'
+        allowPackageConflicts: true
 
     - powershell: |
         cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg-master\scripts\buildsystems\vcpkg.cmake -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON -A $(platform) -T $(toolset)
         cmake --build $(Build.BinariesDirectory) --config $(build_type)
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        ArtifactName: $(vm_image)-$(platform)-$(toolset)
+        PathtoPublish: $(Build.BinariesDirectory)      
+
+    - powershell: |        
         Remove-Item $(Build.BinariesDirectory) -Recurse -Force
         cmake CMakeLists.txt -B$(Build.BinariesDirectory) -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg-master\scripts\buildsystems\vcpkg.cmake -DBUILD_SAMPLES=ON -DBUILD_TESTS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_ADLS=ON -A $(platform) -T $(toolset)
         cmake --build $(Build.BinariesDirectory) --config $(build_type)
       displayName: Build
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        ArtifactName: $(vm_image)-$(platform)-$(toolset)-adls
+        PathtoPublish: $(Build.BinariesDirectory)
 
     - powershell: |
         .\azure-storage-test.exe

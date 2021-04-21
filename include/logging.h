@@ -92,10 +92,7 @@ namespace azure { namespace storage_lite {
             log(log_level::trace, msg, args...);
         }
 
-        static void set_logger(const std::function<void(log_level, const std::string&)>& new_logger)
-        {
-            s_logger = new_logger;
-        }
+        AZURE_STORAGE_API static void set_logger(const std::function<void(log_level, const std::string&)>& new_logger);
 
     protected:
         AZURE_STORAGE_API static std::function<void(log_level, const std::string&)> s_logger;
