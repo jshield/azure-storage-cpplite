@@ -11,6 +11,11 @@ namespace azure {    namespace storage_lite {
 
     std::function<void(log_level, const std::string&)> logger::s_logger = logger::simple_logger;
 
+    static void set_logger(const std::function<void(log_level, const std::string&)>& new_logger)
+    {
+        s_logger = new_logger;
+    }
+
 #ifdef _WIN32
     void logger::simple_logger(log_level level, const std::string& msg)
     {
